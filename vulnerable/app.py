@@ -1,28 +1,38 @@
-from flask import Flask, request
-import pickle
+from flask import Flask, request, jsonify
+import os
+import json
 
 app = Flask(__name__)
 
-# ❌ Хардкод секретов
-API_KEY = "supersecretapikey123"
+# ✅ Секрет извлекается из переменной окружения
+API_KEY = os.getenv("API_KEY", None)
 
 @app.route("/")
 def index():
-    # ❌ Утечка секрета в ответ
-    return f"Welcome! API_KEY={API_KEY}"
+    # ✅ Не показываем секреты
+    return "Welcome to secure demo"
 
-@app.route("/error")
-def error():
-    # ❌ Искусственная ошибка — покажет stacktrace при debug=True
-    return 1 / 0
+# ✅ Глобальный обработчик ошибок — скрываем детали
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Логирование (в реальном приложении логируйте в файл/систему логирования)
+    print(f"ERROR: {e}")
+    return jsonify({"error": "Internal Server Error"}), 500
 
 @app.route("/deserialize", methods=["POST"])
 def deserialize():
-    data = request.data
-    # ❌ Небезопасная десериализация
-    obj = pickle.loads(data)
-    return f"Deserialized object: {obj}"
+    # ✅ Принимаем JSON, не бинарные pickle данные
+    try:
+        data_text = request.get_data(as_text=True)
+        obj = json.loads(data_text)
+        # Валидация: ожидаем словарь с ключом "action"
+        if not isinstance(obj, dict) or 'action' not in obj:
+            return jsonify({"error": "Invalid input"}), 400
+        return jsonify({"object": obj})
+    except Exception as e:
+        print(f"deserialize error: {e}")
+        return jsonify({"error": "Invalid input"}), 400
 
 if __name__ == "__main__":
-    # ❌ debug=True выводит stacktrace в браузер
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # ✅ debug выключен
+    app.run(host='0.0.0.0', port=5000, debug=False)
